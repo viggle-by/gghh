@@ -1,0 +1,36 @@
+name: Debug with manual tmate setup (24h)
+
+on:
+  workflow_dispatch:  # manually triggered from GitHub UI
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1440  # 24 hours max runtime
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install and start tmate session
+        run: |
+          echo "Installing tmate..."
+          sudo apt update && sudo apt install -y tmate
+
+          echo "Creating tmate session..."
+          tmate -S /tmp/tmate.sock new-session -d
+
+          echo "Fetching tmate connection info..."
+          tmate -S /tmp/tmate.sock wait tmate-ready
+          echo "SSH connection:"
+          tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}'
+          echo "Web connection:"
+          tmate -S /tmp/tmate.sock display -p '#{tmate_web}'
+
+          echo "Session ready! Keep this job running for 24 hours."
+          echo "To connect, use one of the above SSH or web URLs."
+
+      - name: Keep alive
+        run: |
+          echo "Keeping job alive with tail..."
+          tail -f /dev/null
