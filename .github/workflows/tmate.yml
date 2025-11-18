@@ -1,36 +1,46 @@
-name: Debug with manual tmate setup (24h)
+name: Debug with tmate + X11 (24/7 style)
 
 on:
-  workflow_dispatch:  # manually triggered from GitHub UI
+  workflow_dispatch:
 
 jobs:
   debug:
     runs-on: ubuntu-latest
-    timeout-minutes: 1440  # 24 hours max runtime
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install and start tmate session
+      - name: Install xauth and X11 tools
         run: |
-          echo "Installing tmate..."
-          sudo apt update && sudo apt install -y tmate xauth
+          sudo apt-get update
+          sudo apt-get install -y xauth x11-apps
 
-          echo "Creating tmate session..."
+      - name: Install tmate
+        run: |
+          sudo apt-get install -y tmate
+
+      - name: Create Xauthority file and add key
+        run: |
+          touch ~/.Xauthority
+          export DISPLAY=:0
+          xauth add ${DISPLAY} . $(xxd -l 16 -p /dev/urandom)
+
+      - name: Start tmate session with X11 forwarding
+        run: |
+          # Start a detached tmate session
           tmate -S /tmp/tmate.sock new-session -d
 
-          echo "Fetching tmate connection info..."
+          # Wait for it to become available
           tmate -S /tmp/tmate.sock wait tmate-ready
+
           echo "SSH connection:"
           tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}'
+
           echo "Web connection:"
           tmate -S /tmp/tmate.sock display -p '#{tmate_web}'
 
-          echo "Session ready! Keep this job running for 24 hours."
-          echo "To connect, use one of the above SSH or web URLs."
-
-      - name: Keep alive
+      - name: Keep GitHub Action alive (24/7-style)
         run: |
-          echo "Keeping job alive with tail..."
+          echo "Keeping container alive using tail..."
           tail -f /dev/null
