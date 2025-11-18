@@ -1,4 +1,4 @@
-name: Debug with tmate + X11 (24/7 style)
+name: Debug with tmate + X11 (fixed checkout)
 
 on:
   workflow_dispatch:
@@ -7,9 +7,19 @@ jobs:
   debug:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+
     steps:
+      # ---- FIXED CHECKOUT ----
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          retry: 5
 
       - name: Install xauth and X11 tools
         run: |
@@ -20,27 +30,19 @@ jobs:
         run: |
           sudo apt-get install -y tmate
 
-      - name: Create Xauthority file and add key
+      - name: Create Xauthority file
         run: |
           touch ~/.Xauthority
           export DISPLAY=:0
           xauth add ${DISPLAY} . $(xxd -l 16 -p /dev/urandom)
 
-      - name: Start tmate session with X11 forwarding
+      - name: Start tmate session
         run: |
-          # Start a detached tmate session
           tmate -S /tmp/tmate.sock new-session -d
-
-          # Wait for it to become available
           tmate -S /tmp/tmate.sock wait tmate-ready
-
-          echo "SSH connection:"
           tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}'
-
-          echo "Web connection:"
           tmate -S /tmp/tmate.sock display -p '#{tmate_web}'
 
-      - name: Keep GitHub Action alive (24/7-style)
+      - name: Keep alive
         run: |
-          echo "Keeping container alive using tail..."
           tail -f /dev/null
