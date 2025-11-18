@@ -15,7 +15,7 @@ jobs:
       - name: Install and start tmate session
         run: |
           echo "Installing tmate..."
-          sudo apt update && sudo apt install -y tmate
+          sudo apt update && sudo apt install -y tmate xauth
 
           echo "Creating tmate session..."
           tmate -S /tmp/tmate.sock new-session -d
