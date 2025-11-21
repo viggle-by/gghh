@@ -6,6 +6,8 @@ on:
 jobs:
   debug:
     runs-on: ubuntu-latest
+    container:
+      image: ubuntu:resolute-20251101
 
     permissions:
       contents: read
