@@ -1,7 +1,7 @@
-name: MacOS SSH Debug with tmate
+name: MacOS SSH + VNC + noVNC + Cloudflared
 
 on:
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:
 
 jobs:
   debug:
@@ -11,31 +11,55 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install tmate
+      - name: Install dependencies
         run: |
-          brew install tmate
-          tmate -V  # Verify installation
+          brew install tmate python3 cloudflared
+          pip3 install --upgrade pip
+          pip3 install websockify
+
+      - name: Enable macOS VNC (no username)
+        run: |
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -activate -configure -access -on -users "" -privs -all -restart -agent -menu
+
+          echo "secret" | sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -configure -clientopts -setvnclegacy -vnclegacy yes -setvncpw
+
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -restart -agent -menu
+
+      - name: Install noVNC
+        run: |
+          git clone https://github.com/novnc/noVNC.git ~/noVNC
 
       - name: Start tmate session
         id: tmate
         run: |
-          # Start tmate in the background
           tmate -S /tmp/tmate.sock new-session -d
-
-          # Wait for SSH connection string
           tmate -S /tmp/tmate.sock wait tmate-ready
-
-          # Show SSH and Web URLs
           echo "SSH_CONNECTION=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')" >> $GITHUB_ENV
-          echo "WEB_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')"
+          echo "WEB_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')" >> $GITHUB_ENV
+
+      - name: Start noVNC WebSocket proxy
+        run: |
+          ~/noVNC/utils/novnc_proxy --vnc localhost:5900 --listen 6080 &
+          echo "noVNC running on port 6080"
+
+      - name: Start Cloudflare Tunnel
+        run: |
+          # Start cloudflared tunnel for noVNC (publicly accessible)
+          cloudflared tunnel --url http://localhost:6080 --no-autoupdate &
+          
+          # Start cloudflared tunnel for tmate SSH (optional)
+          cloudflared tunnel --url ssh://localhost:22 --no-autoupdate &
 
       - name: Show connection info
         run: |
-          echo "Connect via SSH: $SSH_CONNECTION"
-          echo "Connect via browser: $WEB_URL"
+          echo "Connect via SSH (tmate): $SSH_CONNECTION"
+          echo "Connect via browser (tmate web): $WEB_URL"
+          echo "VNC password: secret"
+          echo "noVNC is exposed via Cloudflare Tunnel (check Cloudflare dashboard or logs for URL)"
 
       - name: Keep session alive
         run: |
-          echo "Press Ctrl+C to terminate..."
-          # Keep workflow running so you can connect
           tail -f /dev/null
