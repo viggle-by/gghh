@@ -1,63 +1,48 @@
-name: MacOS SSH + VNC + noVNC + Cloudflared
+name: Debug with tmate + X11 (fixed checkout)
 
 on:
   workflow_dispatch:
 
 jobs:
   debug:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
 
     steps:
+      # ---- FIXED CHECKOUT ----
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          retry: 5
 
-      - name: Install dependencies
+      - name: Install xauth and X11 tools
         run: |
-          brew install tmate python3 cloudflared
-          # Upgrade pip ignoring system package warning
-          pip3 install --upgrade pip --break-system-packages
-          # Install websockify for noVNC
-          pip3 install websockify --break-system-packages
+          sudo apt-get update
+          sudo apt-get install -y xauth x11-apps
 
-      - name: Enable macOS VNC (no username)
+      - name: Install tmate
         run: |
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -activate -configure -access -on -users "" -privs -all -restart -agent -menu
+          sudo apt-get install -y tmate
 
-          echo "secret" | sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -configure -clientopts -setvnclegacy -vnclegacy yes -setvncpw
-
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -restart -agent -menu
-
-      - name: Install noVNC
+      - name: Create Xauthority file
         run: |
-          git clone https://github.com/novnc/noVNC.git ~/noVNC
+          touch ~/.Xauthority
+          export DISPLAY=:0
+          xauth add ${DISPLAY} . $(xxd -l 16 -p /dev/urandom)
 
       - name: Start tmate session
-        id: tmate
         run: |
           tmate -S /tmp/tmate.sock new-session -d
           tmate -S /tmp/tmate.sock wait tmate-ready
-          echo "SSH_CONNECTION=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')" >> $GITHUB_ENV
-          echo "WEB_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')" >> $GITHUB_ENV
+          tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}'
+          tmate -S /tmp/tmate.sock display -p '#{tmate_web}'
 
-      - name: Start noVNC WebSocket proxy
+      - name: Keep alive
         run: |
-          ~/noVNC/utils/novnc_proxy --vnc localhost:5900 --listen 6080 &
-          echo "noVNC running on port 6080"
-
-      - name: Start Cloudflare Tunnel (no authentication)
-        run: |
-          # Expose only noVNC via quick public tunnel
-          cloudflared tunnel --url http://localhost:6080 --no-autoupdate &
-          
-          # Keep workflow alive so tunnel and noVNC stay running
           tail -f /dev/null
-
-      - name: Show connection info
-        run: |
-          echo "Connect via SSH (tmate): $SSH_CONNECTION"
-          echo "Connect via browser (tmate web): $WEB_URL"
-          echo "VNC password: secret"
-          echo "noVNC exposed via Cloudflare Tunnel (check workflow logs for URL)"
