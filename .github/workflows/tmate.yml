@@ -47,20 +47,17 @@ jobs:
           ~/noVNC/utils/novnc_proxy --vnc localhost:5900 --listen 6080 &
           echo "noVNC running on port 6080"
 
-      - name: Start Cloudflare Tunnel
+      - name: Start Cloudflare Tunnel (no authentication)
         run: |
-          # Expose noVNC via Cloudflare tunnel
+          # Expose only noVNC via quick public tunnel
           cloudflared tunnel --url http://localhost:6080 --no-autoupdate &
-          # Optional: expose SSH via Cloudflare tunnel
-          cloudflared tunnel --url ssh://localhost:22 --no-autoupdate &
+          
+          # Keep workflow alive so tunnel and noVNC stay running
+          tail -f /dev/null
 
       - name: Show connection info
         run: |
           echo "Connect via SSH (tmate): $SSH_CONNECTION"
           echo "Connect via browser (tmate web): $WEB_URL"
           echo "VNC password: secret"
-          echo "noVNC exposed via Cloudflare Tunnel (check logs for URL)"
-
-      - name: Keep session alive
-        run: |
-          tail -f /dev/null
+          echo "noVNC exposed via Cloudflare Tunnel (check workflow logs for URL)"
