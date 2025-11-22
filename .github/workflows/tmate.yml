@@ -1,4 +1,4 @@
-name: MacOS SSH + VNC + noVNC + Cloudflared
+name: MacOS SSH + VNC + noVNC + Cloudflared + Docker
 
 on:
   workflow_dispatch:
@@ -14,8 +14,10 @@ jobs:
       - name: Install dependencies
         run: |
           brew install tmate python3 cloudflared
-          pip3 install --upgrade pip
-          pip3 install websockify
+          # Upgrade pip ignoring system package warning
+          pip3 install --upgrade pip --break-system-packages
+          # Install websockify for noVNC
+          pip3 install websockify --break-system-packages
 
       - name: Enable macOS VNC (no username)
         run: |
@@ -47,18 +49,28 @@ jobs:
 
       - name: Start Cloudflare Tunnel
         run: |
-          # Start cloudflared tunnel for noVNC (publicly accessible)
           cloudflared tunnel --url http://localhost:6080 --no-autoupdate &
-          
-          # Start cloudflared tunnel for tmate SSH (optional)
           cloudflared tunnel --url ssh://localhost:22 --no-autoupdate &
+
+      - name: Enable Docker socket access
+        run: |
+          # Docker Desktop is preinstalled on macOS runners
+          # Make sure the Docker daemon is running
+          open -a Docker
+          # Wait for Docker to start
+          while ! docker info >/dev/null 2>&1; do sleep 5; done
+          # Show Docker version
+          docker version
+          # You can now run containers and bind-mount the socket
+          docker run -d -v /var/run/docker.sock:/var/run/docker.sock --name dockerdemo alpine sleep 3600
 
       - name: Show connection info
         run: |
           echo "Connect via SSH (tmate): $SSH_CONNECTION"
           echo "Connect via browser (tmate web): $WEB_URL"
           echo "VNC password: secret"
-          echo "noVNC is exposed via Cloudflare Tunnel (check Cloudflare dashboard or logs for URL)"
+          echo "noVNC exposed via Cloudflare Tunnel (check logs for URL)"
+          echo "Docker container running with /var/run/docker.sock mounted"
 
       - name: Keep session alive
         run: |
