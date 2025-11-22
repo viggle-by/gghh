@@ -1,48 +1,41 @@
-name: Debug with tmate + X11 (fixed checkout)
+name: MacOS SSH Debug with tmate
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # Allows manual triggering
 
 jobs:
   debug:
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
+    runs-on: macos-latest
 
     steps:
-      # ---- FIXED CHECKOUT ----
       - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
-          persist-credentials: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-          retry: 5
-
-      - name: Install xauth and X11 tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xauth x11-apps
+        uses: actions/checkout@v3
 
       - name: Install tmate
         run: |
-          sudo apt-get install -y tmate
-
-      - name: Create Xauthority file
-        run: |
-          touch ~/.Xauthority
-          export DISPLAY=:0
-          xauth add ${DISPLAY} . $(xxd -l 16 -p /dev/urandom)
+          brew install tmate
+          tmate -V  # Verify installation
 
       - name: Start tmate session
+        id: tmate
         run: |
+          # Start tmate in the background
           tmate -S /tmp/tmate.sock new-session -d
-          tmate -S /tmp/tmate.sock wait tmate-ready
-          tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}'
-          tmate -S /tmp/tmate.sock display -p '#{tmate_web}'
 
-      - name: Keep alive
+          # Wait for SSH connection string
+          tmate -S /tmp/tmate.sock wait tmate-ready
+
+          # Show SSH and Web URLs
+          echo "SSH_CONNECTION=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')" >> $GITHUB_ENV
+          echo "WEB_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')"
+
+      - name: Show connection info
         run: |
+          echo "Connect via SSH: $SSH_CONNECTION"
+          echo "Connect via browser: $WEB_URL"
+
+      - name: Keep session alive
+        run: |
+          echo "Press Ctrl+C to terminate..."
+          # Keep workflow running so you can connect
           tail -f /dev/null
