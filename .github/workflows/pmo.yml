@@ -1,0 +1,60 @@
+name: Colima with Web Terminal
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ----------------------
+      # Install Colima + gotty + cloudflared
+      # ----------------------
+      - name: Install Colima, gotty, cloudflared
+        run: |
+          brew update
+          brew install colima gotty cloudflared
+
+      # ----------------------
+      # Start Colima via Homebrew Services
+      # ----------------------
+      - name: Start Colima with brew services
+        run: |
+          echo "Starting Colima via brew services..."
+          brew services start colima
+          echo "Colima started."
+
+      # ----------------------
+      # Start web terminal (gotty)
+      # ----------------------
+      - name: Start gotty web terminal
+        run: |
+          echo "Launching web terminal on port 8080..."
+          gotty --port 8080 --permit-write bash &
+
+      # ----------------------
+      # Expose the web terminal via Cloudflare Tunnel (no token)
+      # ----------------------
+      - name: Expose web terminal with cloudflared (no token)
+        run: |
+          RANDOM_SUBDOMAIN="term-$(openssl rand -hex 4)"
+          HOST="$RANDOM_SUBDOMAIN.trycloudflare.com"
+          echo "cloud_subdomain=$HOST" >> $GITHUB_ENV
+
+          echo "Starting cloudflared tunnel..."
+          cloudflared tunnel --url http://localhost:8080 --hostname "$HOST" &
+
+          echo "============================================="
+          echo " Web Terminal is available (no authentication):"
+          echo "   https://$HOST"
+          echo "============================================="
+
+      # ----------------------
+      # Keep runner alive
+      # ----------------------
+      - name: Keep Alive
+        run: tail -f /dev/null
