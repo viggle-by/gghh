@@ -12,12 +12,13 @@ jobs:
         uses: actions/checkout@v4
 
       # ----------------------
-      # Install Colima + gotty + cloudflared
+      # Install Colima, GoTTY, Cloudflared
       # ----------------------
-      - name: Install Colima, gotty, cloudflared
+      - name: Install Colima, GoTTY, Cloudflared
         run: |
           brew update
-          brew install colima gotty cloudflared
+          brew install colima cloudflared
+          brew install yudai/gotty/gotty
 
       # ----------------------
       # Start Colima via Homebrew Services
@@ -29,9 +30,9 @@ jobs:
           echo "Colima started."
 
       # ----------------------
-      # Start web terminal (gotty)
+      # Start web terminal (GoTTY)
       # ----------------------
-      - name: Start gotty web terminal
+      - name: Start GoTTY web terminal
         run: |
           echo "Launching web terminal on port 8080..."
           gotty --port 8080 --permit-write bash &
@@ -39,13 +40,13 @@ jobs:
       # ----------------------
       # Expose the web terminal via Cloudflare Tunnel (no token)
       # ----------------------
-      - name: Expose web terminal with cloudflared (no token)
+      - name: Expose web terminal with Cloudflared (no token)
         run: |
           RANDOM_SUBDOMAIN="term-$(openssl rand -hex 4)"
           HOST="$RANDOM_SUBDOMAIN.trycloudflare.com"
           echo "cloud_subdomain=$HOST" >> $GITHUB_ENV
 
-          echo "Starting cloudflared tunnel..."
+          echo "Starting Cloudflared tunnel..."
           cloudflared tunnel --url http://localhost:8080 --hostname "$HOST" &
 
           echo "============================================="
