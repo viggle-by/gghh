@@ -1,4 +1,4 @@
-name: Colima with Web Terminal
+name: Colima with VS Code Tunnel
 
 on:
   workflow_dispatch:
@@ -12,12 +12,13 @@ jobs:
         uses: actions/checkout@v4
 
       # ----------------------
-      # Install Colima, ttyd, Cloudflared
+      # Install Colima, VS Code CLI, Cloudflared
       # ----------------------
-      - name: Install Colima, ttyd, Cloudflared
+      - name: Install Colima, VS Code CLI, Cloudflared
         run: |
           brew update
-          brew install colima cloudflared ttyd
+          brew install colima cloudflared
+          brew install --cask visual-studio-code
 
       # ----------------------
       # Start Colima via Homebrew Services
@@ -29,19 +30,23 @@ jobs:
           echo "Colima started."
 
       # ----------------------
-      # Start web terminal (ttyd)
+      # Start VS Code Tunnel
       # ----------------------
-      - name: Start ttyd web terminal
+      - name: Start VS Code Tunnel
         run: |
-          echo "Launching ttyd web terminal on port 8080..."
-          ttyd -p 8080 bash &
+          echo "Starting VS Code Tunnel..."
+          # Accept CLI license automatically
+          export PATH="/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH"
+
+          # Start VS Code server in tunnel mode
+          code tunnel --accept-server-license-terms &
 
       # ----------------------
-      # Expose the web terminal via Cloudflare Tunnel (no token)
+      # Expose VS Code Tunnel port via Cloudflare (no token)
       # ----------------------
-      - name: Expose web terminal with Cloudflared (no token)
+      - name: Expose VS Code Tunnel with Cloudflared (no token)
         run: |
-          RANDOM_SUBDOMAIN="term-$(openssl rand -hex 4)"
+          RANDOM_SUBDOMAIN="vscode-$(openssl rand -hex 4)"
           HOST="$RANDOM_SUBDOMAIN.trycloudflare.com"
           echo "cloud_subdomain=$HOST" >> $GITHUB_ENV
 
@@ -49,7 +54,7 @@ jobs:
           cloudflared tunnel --url http://localhost:8080 --hostname "$HOST" &
 
           echo "============================================="
-          echo " Web Terminal is available (no authentication):"
+          echo " VS Code Tunnel is available (no authentication):"
           echo "   https://$HOST"
           echo "============================================="
 
