@@ -1,0 +1,38 @@
+name: Build Ghostling (macOS 26 + Nix)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        run: |
+          curl -L https://nixos.org/nix/install | sh -s -- --daemon
+          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+
+      - name: Verify Nix install
+        run: nix --version
+
+      - name: Clone Ghostling
+        run: |
+          git clone https://github.com/ghostty-org/ghostling.git
+
+      - name: Build with Nix + CMake
+        run: |
+          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+          cd ghostling
+          nix develop -c cmake -B build -G Ninja
+          nix develop -c cmake --build build
+
+      - name: Upload Ghostling binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghostling-macos
+          path: ghostling/build/**
