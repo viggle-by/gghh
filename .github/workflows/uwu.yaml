@@ -15,18 +15,17 @@ jobs:
       - name: Install Nix
         run: |
           curl -L https://nixos.org/nix/install | sh -s -- --daemon
-          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+          echo "NIX_PATH=/nix/var/nix/profiles/default/etc/profile.d" >> $GITHUB_ENV
+          echo "/nix/var/nix/profiles/default/bin" >> $GITHUB_PATH
 
       - name: Verify Nix install
         run: nix --version
 
       - name: Clone Ghostling
-        run: |
-          git clone https://github.com/ghostty-org/ghostling.git
+        run: git clone https://github.com/ghostty-org/ghostling.git
 
       - name: Build with Nix + CMake
         run: |
-          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
           cd ghostling
           nix develop -c cmake -B build -G Ninja
           nix develop -c cmake --build build
