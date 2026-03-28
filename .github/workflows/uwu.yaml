@@ -1,4 +1,4 @@
-name: Build Ghostling (macOS 26 + Nix)
+name: Build Ghostling macOS App Bundle
 
 on:
   push:
@@ -9,7 +9,7 @@ jobs:
     runs-on: macos-26
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Nix
@@ -22,20 +22,71 @@ jobs:
           mkdir -p ~/.config/nix
           echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
-      - name: Verify Nix install
-        run: nix --version
-
       - name: Clone Ghostling
         run: git clone https://github.com/ghostty-org/ghostling.git
 
-      - name: Build with Nix + CMake
+      - name: Build
         run: |
           cd ghostling
           nix develop -c cmake -B build -G Ninja
           nix develop -c cmake --build build
 
-      - name: Upload Ghostling artifact
+      - name: Create .app bundle
+        run: |
+          cd ghostling/build
+
+          APP=Ghostling.app
+          mkdir -p $APP/Contents/{MacOS,Frameworks}
+
+          # Find main executable
+          BIN=$(find . -type f -perm +111 ! -name "*.dylib" | head -n 1)
+          cp "$BIN" $APP/Contents/MacOS/Ghostling
+
+          # Create Info.plist
+          cat > $APP/Contents/Info.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+          "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key>
+            <string>Ghostling</string>
+            <key>CFBundleExecutable</key>
+            <string>Ghostling</string>
+            <key>CFBundleIdentifier</key>
+            <string>org.ghostty.ghostling</string>
+            <key>CFBundleVersion</key>
+            <string>1.0</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+          </dict>
+          </plist>
+          EOF
+
+          # Copy dylibs into Frameworks
+          find . -name "*.dylib" -exec cp {} $APP/Contents/Frameworks/ \;
+
+          # Fix library paths
+          for lib in $APP/Contents/Frameworks/*.dylib; do
+            install_name_tool -id "@rpath/$(basename $lib)" "$lib"
+          done
+
+          # Fix executable rpath
+          install_name_tool -add_rpath "@executable_path/../Frameworks" $APP/Contents/MacOS/Ghostling
+
+          # Relink dylibs
+          for lib in $APP/Contents/Frameworks/*.dylib; do
+            name=$(basename $lib)
+            install_name_tool -change "@rpath/$name" "@executable_path/../Frameworks/$name" $APP/Contents/MacOS/Ghostling || true
+          done
+
+      - name: Zip app
+        run: |
+          cd ghostling/build
+          ditto -c -k --keepParent Ghostling.app Ghostling-macos.zip
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ghostling-macos
-          path: ghostling/build/**
+          name: ghostling-macos-app
+          path: ghostling/build/Ghostling-macos.zip
