@@ -15,8 +15,12 @@ jobs:
       - name: Install Nix
         run: |
           curl -L https://nixos.org/nix/install | sh -s -- --daemon
-          echo "NIX_PATH=/nix/var/nix/profiles/default/etc/profile.d" >> $GITHUB_ENV
           echo "/nix/var/nix/profiles/default/bin" >> $GITHUB_PATH
+
+      - name: Enable Nix experimental features
+        run: |
+          mkdir -p ~/.config/nix
+          echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
       - name: Verify Nix install
         run: nix --version
@@ -30,7 +34,7 @@ jobs:
           nix develop -c cmake -B build -G Ninja
           nix develop -c cmake --build build
 
-      - name: Upload Ghostling binary
+      - name: Upload Ghostling artifact
         uses: actions/upload-artifact@v4
         with:
           name: ghostling-macos
